@@ -9,12 +9,28 @@ const TOP = 28;
 const BOTTOM = 64;
 const ZOOM_LEVELS = [1, 1.35, 1.8, 2.5];
 
-export default function MarketChart({ company, zoomIndex }) {
+export default function MarketChart({ company, zoomIndex, liveCandles = [] }) {
   const svgRef = useRef(null);
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ left: 0, top: 0 });
 
-  const allData = createMarketSeries(company);
+  const prototypeData =
+    createMarketSeries(company);
+
+  const visibleLiveCandles =
+    liveCandles.slice(-prototypeData.length);
+
+  const prototypeCount =
+    Math.max(
+      0,
+      prototypeData.length -
+        visibleLiveCandles.length
+    );
+
+  const allData = [
+    ...prototypeData.slice(0, prototypeCount),
+    ...visibleLiveCandles,
+  ];
   const visibleCount = Math.max(16, Math.round(allData.length / ZOOM_LEVELS[zoomIndex]));
   const data = allData.slice(-visibleCount);
 
@@ -104,7 +120,7 @@ export default function MarketChart({ company, zoomIndex }) {
             const rising = point.close >= point.open;
             const color = rising ? "#eeeeee" : "#777777";
             return (
-              <g className="candle" style={{ animationDelay: `${index * 6}ms` }} key={`${point.label}-${index}`}>
+              <g className="candle" style={{ animationDelay: `${index * 6}ms` }} key={point.startTime ??`${point.label}-${index}`}>
                 <line x1={x(index)} y1={y(point.high)} x2={x(index)} y2={y(point.low)} stroke={color} strokeWidth="1.2" />
                 <rect
                   x={x(index) - candleWidth / 2}

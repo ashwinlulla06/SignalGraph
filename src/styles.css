@@ -80,7 +80,7 @@ button { cursor: pointer; }
 .symbol-chevron { margin-left: auto; color: var(--muted); }
 .market-metrics { min-width: 0; flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .metric-label { color: var(--fog); font-size: 12px; }
-.metric-value { margin-top: 3px; color: var(--silver); font: 14px var(--data); white-space: nowrap; }
+.metric-value { margin-top: 3px; color: var(--silver); font: 14px var(--data); white-space: nowrap; font-variant-numeric: tabular-nums;}
 .metric-value.primary { color: var(--paper); font-size: 19px; }
 .move-up::before { content: "▲ "; }
 .move-down::before { content: "▼ "; }
@@ -189,6 +189,77 @@ tbody tr.selected { background: var(--graphite); box-shadow: inset 2px 0 var(--p
 .toast { position: fixed; z-index: 40; right: 22px; bottom: 22px; max-width: 340px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; color: var(--silver); background: var(--graphite); box-shadow: 0 16px 45px rgba(0,0,0,.45); opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .25s ease, transform .25s ease; }
 .toast.visible { opacity: 1; transform: none; }
 
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--fog);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.connection-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #777777;
+}
+
+.connection-status.connected .connection-dot {
+  background: #eeeeee;
+}
+
+.connection-status.connecting .connection-dot,
+.connection-status.reconnecting .connection-dot {
+  animation: connection-pulse 1.2s ease-in-out infinite;
+}
+
+.watchlist-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.watchlist-table .company-column {
+  width: 32%;
+}
+
+.watchlist-table .price-column {
+  width: 18%;
+}
+
+.watchlist-table .change-column {
+  width: 18%;
+}
+
+.watchlist-table .volume-column {
+  width: 17%;
+}
+
+.watchlist-table .evidence-column {
+  width: 15%;
+}
+
+.watchlist-table th:not(:first-child),
+.watchlist-table td:not(:first-child) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes connection-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 1120px) {
   .app { grid-template-columns: 190px minmax(0,1fr); }
   .workspace { padding-inline: 16px; }
@@ -233,8 +304,12 @@ tbody tr.selected { background: var(--graphite); box-shadow: inset 2px 0 var(--p
   .agent-map { min-height: 410px; }
   .agent-lines { display: none; }
   .coordinator { width: 100%; margin-bottom: 10px; }
-  .watchlist { overflow-x: auto; }
-  table { min-width: 520px; }
+    .watchlist {
+    overflow-x: auto;
+  }
+  .watchlist-table {
+    min-width: 560px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

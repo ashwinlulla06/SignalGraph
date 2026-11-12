@@ -9,6 +9,7 @@ import Toast from "./components/Toast";
 import Topbar from "./components/Topbar";
 import Watchlist from "./components/Watchlist";
 import { companies, emptyHandoff } from "./data/prototypeData";
+import useMarketData from "./hooks/useMarketData";
 
 export default function App() {
   const [selectedTicker, setSelectedTicker] = useState("NVDA");
@@ -19,7 +20,11 @@ export default function App() {
   const [workflowResetKey, setWorkflowResetKey] = useState(0);
   const [toast, setToast] = useState("");
 
+  const {quotesBySymbol, connectionState, error} = useMarketData();
+
   const selectedCompany = companies.find((company) => company.ticker === selectedTicker) || companies[0];
+
+  const selectedQuote = quotesBySymbol[selectedCompany.ticker];
 
   useEffect(() => {
     function handleKeyboard(event) {
@@ -43,6 +48,12 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if(error){
+      setToast(error);
+    }
+  }, [error])
+
   function selectCompany(ticker) {
     setSelectedTicker(ticker);
     setToast(`Market context switched to ${ticker}`);
@@ -62,6 +73,7 @@ export default function App() {
           onMenu={() => setSidebarOpen(true)}
           onSearch={() => setSearchOpen(true)}
           onNewInvestigation={startNewInvestigation}
+          connectionState={connectionState}
         />
 
         <div className="workspace">
@@ -72,6 +84,7 @@ export default function App() {
               company={selectedCompany}
               companies={companies}
               onSelectCompany={selectCompany}
+              quote={selectedQuote}
             />
 
             <AgentWorkflow
@@ -88,6 +101,7 @@ export default function App() {
               companies={companies}
               selectedTicker={selectedTicker}
               onSelect={selectCompany}
+              quotesBySymbol={quotesBySymbol}
             />
             <SharedEvidence handoffs={handoffs} />
           </div>
