@@ -76,6 +76,18 @@ async def lifespan(app: FastAPI):
 
     app.state.latest_anomaly_results = {}
 
+    # Recent automatic investigations are stored in memory.
+    app.state.automatic_investigations = []
+
+    # Used to enforce the cooldown for each symbol.
+    app.state.automatic_investigation_last_started = {}
+
+    # Used to prevent the same candle from triggering twice.
+    app.state.automatic_investigation_last_candle = {}
+
+    # Keeps references to investigations currently running.
+    app.state.automatic_investigation_tasks = set()
+
     # Historical candles prepare the ML models for live analysis.
     await seed_anomaly_detector(app)
 
@@ -102,7 +114,6 @@ async def lifespan(app: FastAPI):
             candle_finalizer_task,
         ]
 
-        # Stop both infinite background loops cleanly.
         for task in background_tasks:
             task.cancel()
 
@@ -112,11 +123,19 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
 
-        # Close the reusable HTTP clients owned by the providers.
-        await (
-            app.state.finnhub_provider.close()
+        automatic_tasks = list(
+            app.state.automatic_investigation_tasks
         )
 
-        await (
-            app.state.twelve_data_provider.close()
-        )
+        for task in automatic_tasks:
+            task.cancel()
+
+        if automatic_tasks:
+            await asyncio.gather(
+                *automatic_tasks,
+                return_exceptions=True,
+            )
+
+        await app.state.finnhub_provider.close()
+
+        await app.state.twelve_data_provider.close()

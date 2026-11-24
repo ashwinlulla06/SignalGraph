@@ -10,11 +10,22 @@ function currentTime() {
   }).format(new Date());
 }
 
-export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onHandoffsChange, showToast }) {
+export default function AgentWorkflow({
+  company,
+  resetKey,
+  onActiveQuestion,
+  onHandoffsChange,
+  showToast,
+  automaticInvestigation
+}) {
   const [question, setQuestion] = useState("");
   const [running, setRunning] = useState(false);
   const [complete, setComplete] = useState(false);
   const [stageIndex, setStageIndex] = useState(-1);
+
+  const automaticRunning = automaticInvestigation?.status === "running";
+  const automaticComplete = automaticInvestigation?.status === "complete";
+  const automaticFailed = automaticInvestigation?.status === "failed";
 
   useEffect(() => {
     setQuestion("");
@@ -54,6 +65,54 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
     return () => window.clearTimeout(timer);
   }, [running, stageIndex, onHandoffsChange, showToast]);
 
+  useEffect(() => {
+    if (!automaticInvestigation) return;
+
+    const { status, symbol, result, error } = automaticInvestigation;
+
+    if (status === "running") {
+      onActiveQuestion(`Automatic anomaly investigation for ${symbol}`);
+      onHandoffsChange([{
+        time: currentTime(),
+        title: "Anomaly monitor → Supervisor",
+        detail: `A live anomaly triggered an investigation for ${symbol}`
+      }]);
+      showToast(`Automatic investigation started for ${symbol}`);
+      return;
+    }
+
+    if (status === "complete") {
+      onActiveQuestion(
+        result?.question || `Automatic anomaly investigation for ${symbol}`
+      );
+
+      const backendHandoffs = (result?.handoffs || [])
+        .map((handoff) => ({
+          time: currentTime(),
+          title: `${handoff.from_agent} → ${handoff.to_agent}`,
+          detail: handoff.summary
+        }))
+        .reverse()
+        .slice(0, 4);
+
+      onHandoffsChange(
+        backendHandoffs.length ? backendHandoffs : [emptyHandoff]
+      );
+      showToast(`Automatic investigation completed for ${symbol}`);
+      return;
+    }
+
+    if (status === "failed") {
+      onActiveQuestion(`Automatic anomaly investigation for ${symbol}`);
+      onHandoffsChange([{
+        time: currentTime(),
+        title: "Investigation stopped",
+        detail: error
+      }]);
+      showToast(`Automatic investigation failed for ${symbol}`);
+    }
+  }, [automaticInvestigation, onActiveQuestion, onHandoffsChange, showToast]);
+
   function submitQuestion(event) {
     event.preventDefault();
     const cleanQuestion = question.trim();
@@ -75,6 +134,11 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
   }
 
   function isCompleted(key) {
+    if (automaticComplete) {
+      const selectedAgents = automaticInvestigation.result?.selected_agents || [];
+      return key === "supervisor" || key === "synthesis" || selectedAgents.includes(key);
+    }
+
     if (complete) return true;
     if (stageIndex <= 0) return false;
     return workflowStages
@@ -83,6 +147,10 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
   }
 
   function statusFor(key) {
+    if (automaticRunning && key === "supervisor") return "Routing anomaly";
+    if (automaticComplete && key === "synthesis") return "Report ready";
+    if (automaticComplete && isCompleted(key)) return "Complete";
+
     const activeStage = workflowStages[stageIndex];
     if (running && activeStage?.keys.includes(key)) return activeStage.state;
     if (complete) return key === "synthesis" ? "Report ready" : "Complete";
@@ -93,7 +161,8 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
   }
 
   function nodeClass(key, baseClass) {
-    const active = running && workflowStages[stageIndex]?.keys.includes(key);
+    const automaticActive = automaticRunning && key === "supervisor";
+    const active = automaticActive || (running && workflowStages[stageIndex]?.keys.includes(key));
     return `${baseClass}${active ? " running" : ""}${!active && isCompleted(key) ? " completed" : ""}`;
   }
 
@@ -102,9 +171,23 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
   }
 
   const activeStage = workflowStages[stageIndex];
-  const progress = complete ? 100 : activeStage?.progress ?? 0;
-  const progressLabel = complete ? "Complete" : running ? `${stageIndex + 1} of ${workflowStages.length} phases` : "Ready";
-  const automaticCopy = complete ? "Completed automatically" : activeStage?.copy ?? "Starts automatically after a question";
+  const progress = automaticComplete ? 100 : automaticRunning ? 10 : complete ? 100 : activeStage?.progress ?? 0;
+  const progressLabel = automaticFailed
+    ? "Failed"
+    : automaticComplete || complete
+      ? "Complete"
+      : automaticRunning
+        ? "Running automatically"
+        : running
+          ? `${stageIndex + 1} of ${workflowStages.length} phases`
+          : "Ready";
+  const automaticCopy = automaticFailed
+    ? automaticInvestigation.error
+    : automaticRunning
+      ? "Triggered by the live anomaly monitor"
+      : automaticComplete
+        ? "Completed automatically"
+        : activeStage?.copy ?? "Starts automatically after a question";
 
   return (
     <section className="orchestration" aria-label="Agent orchestration">
@@ -113,8 +196,16 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
           <h2>Investigation workflow</h2>
           <p>The supervisor routes each investigation through the relevant market, evidence, and review specialists.</p>
         </div>
-        <span className={`run-state ${running ? "running" : ""}`}>
-          {complete ? "Synthesis ready" : running ? "Agents running" : "Waiting for question"}
+        <span className={`run-state ${running || automaticRunning ? "running" : ""}`}>
+          {automaticFailed
+            ? "Investigation failed"
+            : automaticComplete || complete
+              ? "Synthesis ready"
+              : automaticRunning
+                ? "Automatic investigation"
+                : running
+                  ? "Agents running"
+                  : "Monitoring for anomalies"}
         </span>
       </div>
 
@@ -125,10 +216,10 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
           placeholder={`Ask a research question about ${company.ticker}…`}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          disabled={running}
+          disabled={running || automaticRunning}
           autoComplete="off"
         />
-        <button className="ask-button" type="submit" disabled={running}>Ask agents</button>
+        <button className="ask-button" type="submit" disabled={running || automaticRunning}>Ask agents</button>
       </form>
 
       <div className="agent-map">

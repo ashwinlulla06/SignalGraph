@@ -22,7 +22,14 @@ export default function App() {
   const [workflowResetKey, setWorkflowResetKey] = useState(0);
   const [toast, setToast] = useState("");
 
-  const {quotesBySymbol, connectionState, error, liveCandlesBySymbol, analysisResultsBySymbol} = useMarketData();
+  const {
+    quotesBySymbol,
+    connectionState,
+    error,
+    liveCandlesBySymbol,
+    analysisResultsBySymbol,
+    automaticInvestigation
+  } = useMarketData();
   const {candles: historicalCandles, loading:historyLoading, error: historyError} = useMarketHistory(selectedTicker);
 
   const selectedCompany = companies.find((company) => company.ticker === selectedTicker) || companies[0];
@@ -63,6 +70,18 @@ export default function App() {
     if(currentError)
       setToast(currentError);
   }, [error, historyError])
+
+  useEffect(() => {
+    if (!automaticInvestigation?.symbol) return;
+
+    const symbolExists = companies.some(
+      (company) => company.ticker === automaticInvestigation.symbol
+    );
+
+    if (symbolExists) {
+      setSelectedTicker(automaticInvestigation.symbol);
+    }
+  }, [automaticInvestigation]);
 
   function selectCompany(ticker) {
     setSelectedTicker(ticker);
@@ -106,6 +125,7 @@ export default function App() {
               onActiveQuestion={setActiveQuestion}
               onHandoffsChange={setHandoffs}
               showToast={setToast}
+              automaticInvestigation={automaticInvestigation}
             />
           </div>
 
@@ -116,7 +136,10 @@ export default function App() {
               onSelect={selectCompany}
               quotesBySymbol={quotesBySymbol}
             />
-            <SharedEvidence handoffs={handoffs} />
+            <SharedEvidence
+              handoffs={handoffs}
+              automaticInvestigation={automaticInvestigation}
+            />
           </div>
         </div>
       </main>

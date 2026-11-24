@@ -117,6 +117,7 @@ export default function useMarketData() {
   const [error, setError] = useState("");
   const [liveCandlesBySymbol, setLiveCandlesBySymbol] = useState({});
   const [analysisResultsBySymbol, setAnalysisResultsBySymbol] = useState({});
+  const [automaticInvestigation, setAutomaticInvestigation] = useState(null);
 
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
@@ -200,6 +201,39 @@ export default function useMarketData() {
             return;
           }
 
+          if(message.type === "automatic_investigation_started"){
+            setAutomaticInvestigation({
+              status: "running",
+              investigationId: message.investigation_id,
+              symbol: message.symbol,
+              result: null,
+              error: ""
+            });
+            return;
+          }
+
+          if(message.type === "automatic_investigation_completed"){
+            setAutomaticInvestigation({
+              status: "complete",
+              investigationId: message.investigation_id,
+              symbol: message.symbol,
+              result: message.result,
+              error: ""
+            });
+            return;
+          }
+
+          if(message.type === "automatic_investigation_failed"){
+            setAutomaticInvestigation({
+              status: "failed",
+              investigationId: message.investigation_id,
+              symbol: message.symbol,
+              result: null,
+              error: message.error || "The automatic investigation failed"
+            });
+            return;
+          }
+
         } catch {
           setError("The server sent an invalid message");
         }
@@ -261,6 +295,7 @@ export default function useMarketData() {
     connectionState,
     error,
     liveCandlesBySymbol,
-    analysisResultsBySymbol
+    analysisResultsBySymbol,
+    automaticInvestigation
   };
 }

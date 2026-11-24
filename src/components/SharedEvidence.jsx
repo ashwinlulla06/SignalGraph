@@ -1,4 +1,36 @@
-export default function SharedEvidence({ handoffs }) {
+export default function SharedEvidence({ handoffs, automaticInvestigation }) {
+  const result = automaticInvestigation?.result;
+  const findings = result?.findings || [];
+  const evidence = result?.evidence || [];
+  const selectedAgents = result?.selected_agents || [];
+
+  const averageConfidence = findings.length
+    ? Math.round(
+        findings.reduce(
+          (total, finding) => total + finding.confidence,
+          0
+        ) / findings.length * 100
+      )
+    : null;
+
+  let title = "Monitoring finalized market candles";
+  let summary = "SignalGraph will start an investigation when the anomaly model detects a meaningful event.";
+
+  if (automaticInvestigation?.status === "running") {
+    title = `Investigating ${automaticInvestigation.symbol}`;
+    summary = "The supervisor is routing this anomaly through the relevant research and review agents.";
+  }
+
+  if (automaticInvestigation?.status === "failed") {
+    title = `Investigation stopped for ${automaticInvestigation.symbol}`;
+    summary = automaticInvestigation.error;
+  }
+
+  if (automaticInvestigation?.status === "complete") {
+    title = `Investigation complete for ${automaticInvestigation.symbol}`;
+    summary = result?.final_report || "The investigation completed without a final report.";
+  }
+
   return (
     <section className="evidence-stream" aria-label="Shared evidence and synthesis">
       <header className="subhead">
@@ -19,18 +51,25 @@ export default function SharedEvidence({ handoffs }) {
         </div>
 
         <article className="synthesis">
-          <div className="synthesis-label"><span>Current synthesis</span><span className="num">Confidence 78%</span></div>
-          <h3>Demand appears broader, but visibility is uneven beyond the current reporting window.</h3>
-          <p>Networking orders and power equipment lead times support deployment outside the largest buyers. Export restrictions and possible order pull-forward remain unresolved.</p>
+          <div className="synthesis-label">
+            <span>Current synthesis</span>
+            {averageConfidence !== null && (
+              <span className="num">Confidence {averageConfidence}%</span>
+            )}
+          </div>
+          <h3>{title}</h3>
+          <p>{summary}</p>
           <div className="source-row">
-            <span className="source">18 earnings calls</span>
-            <span className="source">42 supply signals</span>
-            <span className="source">11 filings</span>
-            <span className="source">7 policy sources</span>
+            <span className="source">{findings.length} findings</span>
+            <span className="source">{evidence.length} evidence items</span>
+            <span className="source">{handoffs.length} recent handoffs</span>
           </div>
           <div className="shared-memory">
-            <span className="memory-avatars"><span>MD</span><span>CF</span><span>SK</span><span>EV</span></span>
-            <span>4 specialists contributed · 6 claims retain citations</span>
+            <span>
+              {selectedAgents.length
+                ? `${selectedAgents.length} agents contributed: ${selectedAgents.join(", ")}`
+                : "Waiting for an automatic investigation"}
+            </span>
           </div>
         </article>
       </div>

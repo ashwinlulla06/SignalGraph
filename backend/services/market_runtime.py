@@ -7,6 +7,7 @@ from backend.connection_manager import ConnectionManager
 from backend.models import LiveCandleUpdate, MarketQuote
 from backend.providers.finnhub_provider import FinnhubProvider
 from backend.symbol_data import SYMBOLS
+from backend.services.automatic_investigation import schedule_automatic_investigation
 
 
 # The same manager is shared by the market service and WebSocket route.
@@ -136,6 +137,10 @@ async def publish_candle_update(
     await connection_manager.broadcast(
         anomaly_result
     )
+
+    schedule_automatic_investigation(app = app,
+                                     anomaly_result=anomaly_result,
+                                     connection_manager=connection_manager)
 
 
 async def run_candle_finalizer(

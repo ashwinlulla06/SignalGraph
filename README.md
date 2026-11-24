@@ -20,6 +20,7 @@ The project combines live market data, anomaly detection, and a supervisor-route
   - daily models for investigations tied to a completed trading date.
 - Uses a LangGraph supervisor to choose the smallest useful set of research agents for each question.
 - Runs independent research agents in parallel and merges their results through typed shared state.
+- Automatically starts a background investigation when a live anomaly passes the score threshold, duplicate check, and per-symbol cooldown.
 - Preserves findings, evidence IDs, confidence values, and agent handoffs throughout an investigation.
 - Passes research through verification, skeptical review, and synthesis before returning the final report.
 
@@ -229,7 +230,6 @@ The React workspace runs at `http://127.0.0.1:5173`.
 ## Future scope
 
 - Complete the cross-market, sector, macroeconomic, filings, regulatory, and risk specialists.
-- Trigger investigations automatically when the live anomaly pipeline detects a meaningful event.
 - Stream agent progress, handoffs, evidence, and synthesis results to the React workspace as they are produced.
 - Add persistent investigation history and searchable evidence storage.
 - Build a repeatable evaluation suite for routing accuracy, citation coverage, unsupported claims, and final-answer quality.
