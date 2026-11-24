@@ -119,22 +119,26 @@ button { cursor: pointer; }
 .ask-button { height: 36px; padding: 0 13px; border: 1px solid var(--paper); border-radius: 7px; color: var(--carbon); background: var(--paper); font-size: 13px; font-weight: 650; }
 .ask-button:disabled { border-color: var(--line); color: var(--muted); background: var(--raised); cursor: default; }
 
-.agent-map { position: relative; min-height: 218px; }
-.agent-lines { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.agent-lines path { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.agent-lines .active-line { stroke: var(--silver); stroke-dasharray: 3 5; animation: dash 3s linear infinite; }
-@keyframes dash { to { stroke-dashoffset: -32; } }
-.coordinator { position: relative; z-index: 1; width: min(420px,48%); margin: 0 auto 42px; padding: 13px 15px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--raised); transition: border-color .2s ease, background .2s ease, box-shadow .2s ease; }
+.agent-map { position: relative; }
+.workflow-anchor { width: min(520px,100%); margin: 0 auto; padding: 13px 15px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); transition: border-color .2s ease, background .2s ease, box-shadow .2s ease; }
+.workflow-connector { width: 1px; height: 28px; margin: 0 auto; background: repeating-linear-gradient(to bottom,var(--silver) 0 3px,transparent 3px 8px); background-size: 1px 16px; animation: connector-flow 1.4s linear infinite; }
+@keyframes connector-flow { to { background-position: 0 16px; } }
+.agent-groups { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px; }
+.agent-group { min-width: 0; }
+.agent-group-head { min-height: 55px; padding: 0 2px 10px; border-bottom: 1px solid var(--line-soft); }
+.agent-group-head h3 { margin: 0; color: var(--paper); font-size: 14px; font-weight: 630; }
+.agent-group-head p { margin: 4px 0 0; color: var(--fog); font-size: 11px; line-height: 1.4; }
+.agent-group-nodes { padding-top: 9px; display: grid; gap: 8px; }
 .agent-avatar { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--paper); background: var(--carbon); font: 10px var(--data); }
-.coordinator strong, .agent-node strong { display: block; font-size: 14px; font-weight: 620; }
-.coordinator small, .agent-node small { display: block; color: var(--fog); font-size: 11px; }
+.workflow-anchor strong, .agent-node strong { display: block; font-size: 13px; font-weight: 620; }
+.workflow-anchor small, .agent-node small { display: block; color: var(--fog); font-size: 11px; line-height: 1.35; }
 .node-state { margin-left: auto; color: var(--silver); font-size: 11px; }
-.specialists { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
-.agent-node { min-width: 0; min-height: 82px; padding: 11px 12px; display: grid; grid-template-columns: 34px minmax(0,1fr); align-items: center; gap: 10px; border: 1px solid var(--line-soft); border-radius: 10px; background: #191919; cursor: pointer; transition: border-color .2s ease, background .2s ease, box-shadow .2s ease; }
+.agent-node { min-width: 0; min-height: 76px; padding: 10px; display: grid; grid-template-columns: 34px minmax(0,1fr); align-items: center; gap: 9px; border: 1px solid var(--line-soft); border-radius: 8px; background: #191919; text-align: left; cursor: pointer; transition: border-color .2s ease, background .2s ease, box-shadow .2s ease; }
 .agent-node:hover { border-color: var(--muted); }
-.coordinator.running, .agent-node.running { border-color: var(--paper); background: #303030; box-shadow: 0 0 0 2px rgba(242,242,242,.09); }
-.coordinator.completed, .agent-node.completed { border-color: var(--muted); background: var(--graphite); }
+.workflow-anchor.running, .agent-node.running { border-color: var(--paper); background: #303030; box-shadow: 0 0 0 2px rgba(242,242,242,.09); }
+.workflow-anchor.completed, .agent-node.completed { border-color: var(--muted); background: var(--graphite); }
 .agent-node .node-state { grid-column: 2; margin: -7px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.synthesis-agent { background: #1b1b1b; }
 .run-footer { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
 .run-progress { flex: 1; height: 4px; overflow: hidden; border-radius: 4px; background: var(--graphite); }
 .run-progress span { display: block; height: 100%; background: var(--paper); transition: width .45s ease; }
@@ -249,6 +253,26 @@ tbody tr.selected { background: var(--graphite); box-shadow: inset 2px 0 var(--p
   font-variant-numeric: tabular-nums;
 }
 
+.chart-empty {
+  display: grid;
+  place-items: center;
+  color: var(--fog);
+  cursor: default;
+}
+
+.tooltip-analysis {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--line);
+  color: var(--fog);
+  line-height: 1.5;
+}
+
+.tooltip-analysis.anomaly {
+  color: var(--paper);
+  font-weight: 600;
+}
+
 @keyframes connection-pulse {
   0%,
   100% {
@@ -264,14 +288,12 @@ tbody tr.selected { background: var(--graphite); box-shadow: inset 2px 0 var(--p
   .app { grid-template-columns: 190px minmax(0,1fr); }
   .workspace { padding-inline: 16px; }
   .secondary-grid { grid-template-columns: 1fr; }
+  .agent-groups { grid-template-columns: repeat(2,minmax(0,1fr)); row-gap: 18px; }
 }
 
 @media (max-width: 900px) {
   .market-card, .orchestration { min-height: auto; }
-  .specialists { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .agent-map { min-height: 340px; }
-  .agent-lines { display: none; }
-  .coordinator { width: min(420px,82%); margin-bottom: 12px; }
+  .workflow-anchor { width: min(520px,100%); }
 }
 
 @media (max-width: 760px) {
@@ -300,10 +322,8 @@ tbody tr.selected { background: var(--graphite); box-shadow: inset 2px 0 var(--p
   .new-run::before { content: "+"; font-size: 18px; }
   .market-metrics { grid-template-columns: repeat(2,1fr); }
   .chart-label { display: none; }
-  .specialists { grid-template-columns: 1fr; }
-  .agent-map { min-height: 410px; }
-  .agent-lines { display: none; }
-  .coordinator { width: 100%; margin-bottom: 10px; }
+  .agent-groups { grid-template-columns: 1fr; }
+  .workflow-anchor { width: 100%; }
     .watchlist {
     overflow-x: auto;
   }

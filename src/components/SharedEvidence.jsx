@@ -29,8 +29,8 @@ export default function SharedEvidence({ handoffs }) {
             <span className="source">7 policy sources</span>
           </div>
           <div className="shared-memory">
-            <span className="memory-avatars"><span>MK</span><span>FL</span><span>SC</span><span>RK</span></span>
-            <span>4 agents contributed · 6 claims retain citations</span>
+            <span className="memory-avatars"><span>MD</span><span>CF</span><span>SK</span><span>EV</span></span>
+            <span>4 specialists contributed · 6 claims retain citations</span>
           </div>
         </article>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { agentDefinitions, emptyHandoff, workflowStages } from "../data/prototypeData";
+import { agentDefinitions, agentGroups, emptyHandoff, workflowStages } from "../data/prototypeData";
 
 function currentTime() {
   return new Intl.DateTimeFormat("en-GB", {
@@ -76,19 +76,24 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
 
   function isCompleted(key) {
     if (complete) return true;
-    return workflowStages.slice(0, stageIndex).some((stage) => stage.key === key);
+    if (stageIndex <= 0) return false;
+    return workflowStages
+      .slice(0, stageIndex)
+      .some((stage) => stage.keys.includes(key));
   }
 
   function statusFor(key) {
     const activeStage = workflowStages[stageIndex];
-    if (running && activeStage?.key === key) return activeStage.state;
-    if (complete) return key === "coordinator" ? "Synthesis ready" : "Returned";
-    if (isCompleted(key)) return key === "coordinator" ? "Coordinating returns" : "Returned";
-    return key === "coordinator" ? "Ready to plan" : "Ready";
+    if (running && activeStage?.keys.includes(key)) return activeStage.state;
+    if (complete) return key === "synthesis" ? "Report ready" : "Complete";
+    if (isCompleted(key)) return "Returned";
+    if (key === "supervisor") return "Ready to route";
+    if (key === "synthesis") return "Waiting for evidence";
+    return "Available";
   }
 
   function nodeClass(key, baseClass) {
-    const active = running && workflowStages[stageIndex]?.key === key;
+    const active = running && workflowStages[stageIndex]?.keys.includes(key);
     return `${baseClass}${active ? " running" : ""}${!active && isCompleted(key) ? " completed" : ""}`;
   }
 
@@ -98,7 +103,7 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
 
   const activeStage = workflowStages[stageIndex];
   const progress = complete ? 100 : activeStage?.progress ?? 0;
-  const progressLabel = complete ? "Complete" : running ? `${stageIndex + 1} of ${workflowStages.length} stages` : "Ready";
+  const progressLabel = complete ? "Complete" : running ? `${stageIndex + 1} of ${workflowStages.length} phases` : "Ready";
   const automaticCopy = complete ? "Completed automatically" : activeStage?.copy ?? "Starts automatically after a question";
 
   return (
@@ -106,7 +111,7 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
       <div className="section-head">
         <div className="section-head-copy">
           <h2>Investigation workflow</h2>
-          <p>The coordinator delegates the question and combines each specialist’s evidence.</p>
+          <p>The supervisor routes each investigation through the relevant market, evidence, and review specialists.</p>
         </div>
         <span className={`run-state ${running ? "running" : ""}`}>
           {complete ? "Synthesis ready" : running ? "Agents running" : "Waiting for question"}
@@ -127,24 +132,48 @@ export default function AgentWorkflow({ company, resetKey, onActiveQuestion, onH
       </form>
 
       <div className="agent-map">
-        <svg className="agent-lines" viewBox="0 0 1000 218" preserveAspectRatio="none" aria-hidden="true">
-          <path className="active-line" d="M500 62V92M125 92H875M125 92V130M375 92V130M625 92V130M875 92V130" />
-        </svg>
-
-        <div className={nodeClass("coordinator", "coordinator")}>
-          <span className="agent-avatar">CO</span>
-          <span><strong>Coordinator</strong><small>Plans, delegates, resolves conflicts</small></span>
-          <span className="node-state">{statusFor("coordinator")}</span>
+        <div className={nodeClass("supervisor", "workflow-anchor")}>
+          <span className="agent-avatar">SV</span>
+          <span><strong>Supervisor</strong><small>Plans the investigation and selects specialists</small></span>
+          <span className="node-state">{statusFor("supervisor")}</span>
         </div>
 
-        <div className="specialists">
-          {agentDefinitions.map((agent) => (
-            <button key={agent.key} className={nodeClass(agent.key, "agent-node")} onClick={() => inspectAgent(agent)}>
-              <span className="agent-avatar">{agent.initials}</span>
-              <span><strong>{agent.name}</strong><small>{agent.role}</small></span>
-              <span className="node-state">{statusFor(agent.key)}</span>
-            </button>
+        <div className="workflow-connector" aria-hidden="true" />
+
+        <div className="agent-groups">
+          {agentGroups.map((group) => (
+            <section className="agent-group" key={group.key}>
+              <header className="agent-group-head">
+                <h3>{group.name}</h3>
+                <p>{group.description}</p>
+              </header>
+
+              <div className="agent-group-nodes">
+                {agentDefinitions
+                  .filter((agent) => agent.group === group.key)
+                  .map((agent) => (
+                    <button
+                      type="button"
+                      key={agent.key}
+                      className={nodeClass(agent.key, "agent-node")}
+                      onClick={() => inspectAgent(agent)}
+                    >
+                      <span className="agent-avatar">{agent.initials}</span>
+                      <span><strong>{agent.name}</strong><small>{agent.role}</small></span>
+                      <span className="node-state">{statusFor(agent.key)}</span>
+                    </button>
+                  ))}
+              </div>
+            </section>
           ))}
+        </div>
+
+        <div className="workflow-connector" aria-hidden="true" />
+
+        <div className={nodeClass("synthesis", "workflow-anchor synthesis-agent")}>
+          <span className="agent-avatar">SY</span>
+          <span><strong>Synthesis</strong><small>Builds the final report from verified evidence</small></span>
+          <span className="node-state">{statusFor("synthesis")}</span>
         </div>
       </div>
 

@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { createMarketSeries } from "../data/prototypeData";
 
 const WIDTH = 1000;
 const HEIGHT = 500;
@@ -9,53 +8,88 @@ const TOP = 28;
 const BOTTOM = 64;
 const ZOOM_LEVELS = [1, 1.35, 1.8, 2.5];
 
-export default function MarketChart({ company, zoomIndex, liveCandles = [] }) {
+export default function MarketChart({ company, zoomIndex, candles = [], loading, previousClose, analysisResults = [] }) {
   const svgRef = useRef(null);
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ left: 0, top: 0 });
 
-  const prototypeData =
-    createMarketSeries(company);
-
-  const visibleLiveCandles =
-    liveCandles.slice(-prototypeData.length);
-
-  const prototypeCount =
-    Math.max(
-      0,
-      prototypeData.length -
-        visibleLiveCandles.length
+  if(candles.length === 0)
+    return (
+      <div className="chart-wrap chart-empty">
+        {loading ? "Loading historical candles..." : "No historical candles available"}
+      </div>
     );
 
-  const allData = [
-    ...prototypeData.slice(0, prototypeCount),
-    ...visibleLiveCandles,
-  ];
+  const allData = candles;
   const visibleCount = Math.max(16, Math.round(allData.length / ZOOM_LEVELS[zoomIndex]));
   const data = allData.slice(-visibleCount);
 
+  const analysisByStartTime = new Map(analysisResults.map((result) => [result.startTime, result]))
+
   const plotWidth = WIDTH - LEFT - RIGHT;
   const plotHeight = HEIGHT - TOP - BOTTOM;
-  const low = Math.min(...data.map((point) => point.low));
-  const high = Math.max(...data.map((point) => point.high));
-  const padding = (high - low) * 0.12;
+  const hasPreviousClose = Number.isFinite(previousClose)
+  const scaleValues = data.map((point) => point.close)
+  if(hasPreviousClose){
+    scaleValues.push(previousClose)
+  }
+  const low = Math.min(...scaleValues)
+  const high = Math.max(...scaleValues)
+  const priceRange = Math.max(high-low, high * 0.001, 0.01)
+  const padding = priceRange * 0.12
   const yMin = low - padding;
   const yMax = high + padding;
 
-  const x = (index) => LEFT + (index + 0.5) * (plotWidth / data.length);
+  const x = (index) => {
+    if (data.length === 1) {
+      return ( LEFT + plotWidth/2 )
+    }
+    return ( LEFT + index * (plotWidth / (data.length - 1)) )
+  }
   const y = (value) => TOP + ((yMax - value) / (yMax - yMin)) * plotHeight;
-  const candleWidth = Math.max(7, Math.min(18, (plotWidth / data.length) * 0.58));
-  const latest = data[data.length - 1];
-  const baselinePoints = data
-    .map((point, index) => `${x(index)},${y(point.close + Math.sin(index * 0.28) * (yMax - yMin) * 0.045)}`)
-    .join(" ");
 
+  const anomalyMarkers = data.map((point, index) => {
+    const analysis = analysisByStartTime.get(point.startTime);
+
+    if(!analysis?.is_anomaly){
+      return null;
+    }
+
+    return {
+      point, index, analysis
+    }
+  }).filter(Boolean)
+
+  const latest = data[data.length - 1];
+  const comparisonPrice = hasPreviousClose ? previousClose : data[0].close;
+  const chartIsUp = latest.close >= comparisonPrice;
+  const chartColor = chartIsUp ? "#35b779" : "#df5b5b";
+  const linePoints = data.map((point, index) => `${x(index)},${y(point.close)}`).join(" ");
+  const areaPoints = [`${x(0)},${HEIGHT - BOTTOM}`,
+    linePoints,
+    `${x(data.length - 1)},${
+      HEIGHT - BOTTOM
+    }`,
+  ].join(" ");
+  
   function handlePointerMove(event) {
     const bounds = svgRef.current.getBoundingClientRect();
     const svgX = ((event.clientX - bounds.left) / bounds.width) * WIDTH;
+    const pointSpacing =
+      data.length === 1
+        ? plotWidth
+        : plotWidth /
+          (data.length - 1);
+
     const nextIndex = Math.max(
       0,
-      Math.min(data.length - 1, Math.floor((svgX - LEFT) / (plotWidth / data.length))),
+      Math.min(
+        data.length - 1,
+        Math.round(
+          (svgX - LEFT) /
+          pointSpacing
+        )
+      )
     );
     setHoveredIndex(nextIndex);
     setTooltipPosition({
@@ -65,6 +99,8 @@ export default function MarketChart({ company, zoomIndex, liveCandles = [] }) {
   }
 
   const hoveredPoint = hoveredIndex === null ? null : data[hoveredIndex];
+
+  const hoveredAnalysis = hoveredPoint ? analysisByStartTime.get(hoveredPoint.startTime) : undefined;
 
   return (
     <div className="chart-wrap">
@@ -77,6 +113,11 @@ export default function MarketChart({ company, zoomIndex, liveCandles = [] }) {
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHoveredIndex(null)}
       >
+        <title>{`${company.ticker} one-minute price history`}</title>
+        <desc>
+          {`Closing-price line for ${company.ticker}. The chart is ${chartIsUp ? "up" : "down"} relative to ${hasPreviousClose ? "the previous close" : "the first visible close"}.`}
+        </desc>
+
         <g aria-hidden="true">
           {Array.from({ length: 7 }, (_, index) => {
             const lineY = TOP + index * (plotHeight / 6);
@@ -113,33 +154,108 @@ export default function MarketChart({ company, zoomIndex, liveCandles = [] }) {
           <text x={WIDTH / 2} y={HEIGHT - 9} fill="#999999" fontSize="12" fontFamily="Segoe UI" textAnchor="middle">Time (ET)</text>
         </g>
 
-        <polyline points={baselinePoints} fill="none" stroke="#777777" strokeWidth="1" strokeDasharray="4 5" opacity=".58" />
+        <polygon
+          points={areaPoints}
+          fill={chartColor}
+          fillOpacity="0.12"
+          pointerEvents="none"
+        />
 
-        <g>
-          {data.map((point, index) => {
-            const rising = point.close >= point.open;
-            const color = rising ? "#eeeeee" : "#777777";
+        <polyline
+          points={linePoints}
+          fill="none"
+          stroke={chartColor}
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          pointerEvents="none"
+        />
+
+        {anomalyMarkers.map(
+          ({ point, index, analysis }) => {
+            const pointY = y(point.close);
+
+            const markerY = Math.max(
+              TOP + 12,
+              pointY - 18
+            );
+
             return (
-              <g className="candle" style={{ animationDelay: `${index * 6}ms` }} key={point.startTime ??`${point.label}-${index}`}>
-                <line x1={x(index)} y1={y(point.high)} x2={x(index)} y2={y(point.low)} stroke={color} strokeWidth="1.2" />
-                <rect
-                  x={x(index) - candleWidth / 2}
-                  y={Math.min(y(point.open), y(point.close))}
-                  width={candleWidth}
-                  height={Math.max(3, Math.abs(y(point.open) - y(point.close)))}
-                  rx="1"
-                  fill={rising ? "#eeeeee" : "#222222"}
-                  stroke={color}
-                  strokeWidth="1.2"
+              <g
+                key={`anomaly-${point.startTime}`}
+                pointerEvents="none"
+              >
+                <line
+                  x1={x(index)}
+                  y1={pointY - 4}
+                  x2={x(index)}
+                  y2={markerY + 6}
+                  stroke="#d5d5d5"
+                  strokeWidth="1"
                 />
+
+                <circle
+                  cx={x(index)}
+                  cy={markerY}
+                  r="7"
+                  fill="#eeeeee"
+                  stroke="#111111"
+                  strokeWidth="2"
+                />
+
+                <text
+                  x={x(index)}
+                  y={markerY + 4}
+                  fill="#111111"
+                  fontSize="10"
+                  fontWeight="700"
+                  textAnchor="middle"
+                >
+                  !
+                </text>
+
+                <title>
+                  {`Anomaly score ${analysis.decision_score.toFixed(4)}`}
+                </title>
               </g>
             );
-          })}
-        </g>
+          }
+        )}
 
-        <line x1={LEFT} y1={y(latest.close)} x2={WIDTH - RIGHT} y2={y(latest.close)} stroke="#bcbcbc" strokeDasharray="2 4" opacity=".65" />
+        <circle
+          cx={x(data.length - 1)}
+          cy={y(latest.close)}
+          r="4"
+          fill={chartColor}
+        />
+
+        {hasPreviousClose && (
+          <g>
+            <line
+              x1={LEFT}
+              y1={y(previousClose)}
+              x2={WIDTH - RIGHT}
+              y2={y(previousClose)}
+              stroke="#929292"
+              strokeWidth="1"
+              strokeDasharray="3 6"
+            />
+
+            <text
+              x={WIDTH - RIGHT - 8}
+              y={y(previousClose) - 8}
+              textAnchor="end"
+              fill="#a5a5a5"
+              fontSize="12"
+              fontFamily="Bahnschrift"
+            >
+              Previous close {previousClose.toFixed(2)}
+            </text>
+          </g>
+        )}
+        <line x1={LEFT} y1={y(latest.close)} x2={WIDTH - RIGHT} y2={y(latest.close)} stroke={chartColor} strokeDasharray="2 4" opacity=".65" />
         <g>
-          <rect x={WIDTH - RIGHT + 5} y={y(latest.close) - 12} width="66" height="24" rx="4" fill="#eeeeee" />
+          <rect x={WIDTH - RIGHT + 5} y={y(latest.close) - 12} width="66" height="24" rx="4" fill={chartColor} />
           <text x={WIDTH - RIGHT + 38} y={y(latest.close) + 5} textAnchor="middle" fill="#111111" fontSize="12" fontFamily="Bahnschrift">{latest.close.toFixed(2)}</text>
         </g>
 
@@ -153,9 +269,34 @@ export default function MarketChart({ company, zoomIndex, liveCandles = [] }) {
 
       {hoveredPoint && (
         <div className="chart-tooltip visible" style={tooltipPosition}>
-          <div className="tooltip-title">{company.ticker} · {hoveredPoint.label}</div>
+          <div className="tooltip-title">
+            {company.ticker} · {hoveredPoint.label}
+            {hoveredPoint.status === "forming" ? " · Live" : ""}
+          </div>
           O {hoveredPoint.open.toFixed(2)} &nbsp; H {hoveredPoint.high.toFixed(2)}<br />
-          L {hoveredPoint.low.toFixed(2)} &nbsp; C {hoveredPoint.close.toFixed(2)}
+          L {hoveredPoint.low.toFixed(2)} &nbsp; C {hoveredPoint.close.toFixed(2)}<br />
+          Volume {hoveredPoint.volume.toLocaleString()}
+        </div>
+      )}
+
+      {hoveredAnalysis && (
+        <div
+          className={`tooltip-analysis ${
+            hoveredAnalysis.is_anomaly
+              ? "anomaly"
+              : ""
+          }`}
+        >
+          ML analysis:{" "}
+          {hoveredAnalysis.is_anomaly
+            ? "Anomaly"
+            : "Normal"}
+
+          <br />
+
+          Score{" "}
+          {hoveredAnalysis.decision_score
+            .toFixed(4)}
         </div>
       )}
     </div>

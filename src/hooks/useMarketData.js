@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { normalizeMarketCandle } from "../utils/marketCandles";
 
 const SNAPSHOT_URL =
   "http://127.0.0.1:8000/api/markets/snapshot";
@@ -7,6 +8,8 @@ const WEBSOCKET_URL =
   "ws://127.0.0.1:8000/ws/market";
 
 const RECONNECT_DELAY = 2000;
+const MAX_LIVE_CANDLES_PER_SYMBOL = 120;
+const MAX_ANALYSIS_RESULTS_PER_SYMBOL = 120
 
 function indexQuotesBySymbol(quotes){
   const indexedQuotes = {};
@@ -18,12 +21,102 @@ function indexQuotesBySymbol(quotes){
   return indexedQuotes;
 }
 
+function applyTradeToQuotes(currentQuotes, trade){
+  const currentQuote = currentQuotes[trade.symbol];
 
+  if(!currentQuote) return currentQuotes;
+
+  const tradeTime = new Date(trade.timestamp).getTime();
+
+  const quoteTime = new Date(currentQuote.timestamp).getTime()
+
+  if (tradeTime < quoteTime) return currentQuotes;
+
+  const absoluteChange = trade.price - currentQuote.previous_close
+
+  const changePercent = ( absoluteChange / currentQuote.previous_close ) * 100;
+
+  const updatedQuote = {
+    ...currentQuote,
+    price: trade.price,
+    absolute_change: absoluteChange,
+    change_percent: changePercent,
+    timestamp: trade.timestamp
+  };
+
+  return {
+    ...currentQuotes,
+    [trade.symbol]: updatedQuote
+  }
+}
+
+function mergeLiveCandle(currentCandlesBySymbol, rawCandle){
+  const candle = normalizeMarketCandle(rawCandle);
+
+  const symbolCandles = currentCandlesBySymbol[candle.symbol] ?? []
+
+  const existingIndex = symbolCandles.findIndex((existingCandle) => existingCandle.startTime === candle.startTime)
+
+  let nextSymbolCandles;
+
+  if(existingIndex >= 0){
+    nextSymbolCandles = [...symbolCandles];
+
+    nextSymbolCandles[existingIndex] = candle;
+
+  } else {
+    nextSymbolCandles = [...symbolCandles, candle]
+  }
+
+  nextSymbolCandles.sort((first, second) => first.startTime - second.startTime);
+
+  return {
+    ...currentCandlesBySymbol,
+    [candle.symbol]: nextSymbolCandles.slice(-MAX_LIVE_CANDLES_PER_SYMBOL)
+
+  }
+}
+
+function mergeAnalysisResult(currentResultsBySymbol, rawResult){
+  const startTime = new Date(rawResult.start_time).getTime();
+
+  if (!Number.isFinite(startTime)){
+    return currentResultsBySymbol
+  }
+
+  const result = {
+    ...rawResult,
+    startTime
+  }
+
+  const symbolResults = currentResultsBySymbol[result.symbol] ?? []
+
+  const existingIndex = symbolResults.findIndex((existingResult) => existingResult.startTime === result.startTime);
+
+  let nextSymbolResults;
+
+  if (existingIndex >= 0){
+    nextSymbolResults = [...symbolResults];
+
+    nextSymbolResults[existingIndex] = result;
+  } else {
+    nextSymbolResults = [...symbolResults, result]
+  }
+
+  nextSymbolResults.sort((first, second) => first.startTime - second.startTime);
+
+  return {
+    ...currentResultsBySymbol,
+    [result.symbol] : nextSymbolResults.slice(-MAX_ANALYSIS_RESULTS_PER_SYMBOL)
+  }
+}
 
 export default function useMarketData() {
   const [quotesBySymbol, setQuotesBySymbol] = useState({});
   const [connectionState, setConnectionState] = useState("connecting")
   const [error, setError] = useState("");
+  const [liveCandlesBySymbol, setLiveCandlesBySymbol] = useState({});
+  const [analysisResultsBySymbol, setAnalysisResultsBySymbol] = useState({});
 
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
@@ -92,7 +185,18 @@ export default function useMarketData() {
             return;
           }
 
-          if (message.type === "market_tick") {
+          if (message.type === "market_trade") {
+            setQuotesBySymbol((currentQuotes) => applyTradeToQuotes(currentQuotes, message));
+            return;
+          }
+
+          if(message.type === "market_candle"){
+            setLiveCandlesBySymbol((currentCandles) => mergeLiveCandle(currentCandles, message));
+            return;
+          }
+
+          if(message.type === "market_anomaly_result"){
+            setAnalysisResultsBySymbol((currentResults) => mergeAnalysisResult(currentResults, message));
             return;
           }
 
@@ -155,6 +259,8 @@ export default function useMarketData() {
   return {
     quotesBySymbol,
     connectionState,
-    error
+    error,
+    liveCandlesBySymbol,
+    analysisResultsBySymbol
   };
 }

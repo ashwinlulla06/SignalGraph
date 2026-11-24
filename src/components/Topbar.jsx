@@ -1,3 +1,5 @@
+import { totalAgentCount } from "../data/prototypeData";
+
 function getConnectionLabel(connectionState) {
   if (connectionState === "connected") {
     return "Backend connected";
@@ -55,12 +57,12 @@ export default function Topbar({
 
         <div className="agents-online">
           <span className="agent-stack" aria-hidden="true">
-            <span>CO</span>
-            <span>MK</span>
-            <span>FL</span>
+            <span>SV</span>
+            <span>MD</span>
             <span>NW</span>
+            <span>EV</span>
           </span>
-          <span>5 agents available</span>
+          <span>{totalAgentCount} agents available</span>
         </div>
 
         <button

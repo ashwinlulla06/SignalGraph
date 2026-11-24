@@ -107,6 +107,59 @@ class FinnhubProvider:
 
                     yield trade
 
+    async def get_company_news(self, symbol : str, from_date : str, to_date : str) -> list[dict]:
+        response = await self._client.get(
+            "/company-news", 
+            params={
+                "symbol" : symbol.upper(),
+                "from" : from_date,
+                "to" : to_date
+            }
+        )
+
+        response.raise_for_status()
+
+        payload = response.json()
+
+        if isinstance(payload, dict):
+            if "error" in payload:
+                raise RuntimeError(
+                    payload['error']
+                )
+            raise RuntimeError(
+                "Finnhub returned an invalid company-news response"
+            )
+
+        if not isinstance(payload, list):
+            raise RuntimeError("Finnhub returned no news list.")
+
+        articles = []
+
+        for raw_article in payload:
+            headline = raw_article.get("headline", "")
+            source_url = raw_article.get("url", "")
+            published_timestamp = raw_article.get("datetime", "")
+
+            if ( not headline or not source_url or not published_timestamp):
+                continue
+
+            published_at = datetime.fromtimestamp(published_timestamp, tz=timezone.utc)
+
+            article = {
+                "article_id" : str(raw_article.get("id", "")),
+                "headline" : headline,
+                "summary" : raw_article.get("summary", ""),
+                "source_name" : raw_article.get("source", "Unknown source"),
+                "source_url" : source_url,
+                "published_at" : published_at,
+                "related_symbol" : raw_article.get("related", symbol.upper())
+            }
+
+            articles.append(article)
+
+        articles.sort(key = lambda article: article['published_at'], reverse=True)
+
+        return articles
 
     async def close(self):
         await self._client.aclose()

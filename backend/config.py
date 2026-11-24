@@ -26,3 +26,6 @@ FINNHUB_API_TOKEN = get_required_environment_variable("FINNHUB_API_TOKEN")
 
 TWELVE_DATA_API_KEY = get_required_environment_variable("TWELVE_DATA_API_KEY")
 
+GEMINI_API_KEY = get_required_environment_variable("GEMINI_API_KEY")
+
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")

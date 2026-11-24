@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import Literal
 from pydantic import BaseModel, Field
 
@@ -51,6 +51,42 @@ class MarketCandle(BaseModel):
 
     volume: float = Field(gt=0)
 
+class LiveCandleUpdate(MarketCandle):
+    type: Literal['market_candle'] = 'market_candle'
+    source: Literal['finnhub'] = 'finnhub'
+    status: Literal['forming', 'finalized']
+    trade_count: int = Field(ge=1)
+    first_trade_time: datetime
+    last_trade_time: datetime
+
+
+class MarketAnomalyResult(BaseModel):
+    type: Literal["market_anomaly_result"] = (
+        "market_anomaly_result"
+    )
+    source: Literal["isolation_forest"] = (
+        "isolation_forest"
+    )
+
+    symbol: str
+    start_time: datetime
+    analyzed_at: datetime
+
+    is_anomaly: bool
+    decision_score: float
+    model_version: int = Field(ge=1)
+    features: dict[str, float]
+
+class DailyAnomalyResult(BaseModel):
+    type : Literal['daily_anomaly_result'] = "daily_anomaly_result"
+    source : Literal['isolation_forest'] = "isolation_forest"
+    symbol : str
+    trading_date : date
+    analyzed_at : datetime
+    is_anomaly : bool
+    decision_score : float
+    model_version : int = Field(ge=1)
+    features : dict[str, float]
 
 class MarketQuote(BaseModel):
     source: Literal['finnhub'] = 'finnhub'

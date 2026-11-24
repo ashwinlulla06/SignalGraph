@@ -10,6 +10,8 @@ import Topbar from "./components/Topbar";
 import Watchlist from "./components/Watchlist";
 import { companies, emptyHandoff } from "./data/prototypeData";
 import useMarketData from "./hooks/useMarketData";
+import useMarketHistory from "./hooks/useMarketHistory";
+import { mergeCandleSeries } from "./utils/marketCandles";
 
 export default function App() {
   const [selectedTicker, setSelectedTicker] = useState("NVDA");
@@ -20,11 +22,18 @@ export default function App() {
   const [workflowResetKey, setWorkflowResetKey] = useState(0);
   const [toast, setToast] = useState("");
 
-  const {quotesBySymbol, connectionState, error} = useMarketData();
+  const {quotesBySymbol, connectionState, error, liveCandlesBySymbol, analysisResultsBySymbol} = useMarketData();
+  const {candles: historicalCandles, loading:historyLoading, error: historyError} = useMarketHistory(selectedTicker);
 
   const selectedCompany = companies.find((company) => company.ticker === selectedTicker) || companies[0];
 
   const selectedQuote = quotesBySymbol[selectedCompany.ticker];
+
+  const selectedLiveCandles = liveCandlesBySymbol[selectedTicker] ?? [];
+
+  const displayedCandles = mergeCandleSeries(historicalCandles, selectedLiveCandles)
+
+  const selectedAnalysisResults = analysisResultsBySymbol[selectedTicker] ?? [];
 
   useEffect(() => {
     function handleKeyboard(event) {
@@ -49,10 +58,11 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => {
-    if(error){
-      setToast(error);
-    }
-  }, [error])
+    const currentError = error || historyError;
+
+    if(currentError)
+      setToast(currentError);
+  }, [error, historyError])
 
   function selectCompany(ticker) {
     setSelectedTicker(ticker);
@@ -85,6 +95,9 @@ export default function App() {
               companies={companies}
               onSelectCompany={selectCompany}
               quote={selectedQuote}
+              candles={displayedCandles}
+              historyLoading={historyLoading}
+              analysisResults = {selectedAnalysisResults}
             />
 
             <AgentWorkflow

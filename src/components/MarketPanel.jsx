@@ -1,20 +1,33 @@
 import { useState } from "react";
 import MarketChart, { ZOOM_LEVELS } from "./MarketChart";
 
-const ranges = ["15m", "1h", "1D", "1W"];
 
 export default function MarketPanel({
   company,
   companies,
   onSelectCompany,
   quote,
+  candles,
+  historyLoading,
+  analysisResults
 }) {
-  const [range, setRange] = useState("1h");
   const [zoomIndex, setZoomIndex] = useState(0);
 
-  const price = quote?.price;
-  const change = quote?.change_percent;
+  const latestCandle = candles[candles.length - 1];
+
+  const chartPrice =
+    latestCandle?.symbol === company.ticker
+      ? latestCandle.close
+      : undefined;
+
+  const price = chartPrice ?? quote?.price;
   const previousClose = quote?.previous_close;
+
+  const change =
+    Number.isFinite(price) &&
+    Number.isFinite(previousClose)
+      ? ((price - previousClose) / previousClose) * 100
+      : quote?.change_percent;
 
   function selectNextCompany() {
     const currentIndex = companies.findIndex(
@@ -83,19 +96,13 @@ export default function MarketPanel({
       </header>
 
       <div className="chart-toolbar">
-        {ranges.map((item) => (
-          <button
-            type="button"
-            key={item}
-            className={`range-button ${range === item ? "active" : ""}`}
-            onClick={() => setRange(item)}
-          >
-            {item}
-          </button>
-        ))}
 
-        <span className="chart-label">{company.ticker} market context</span>
-        <span className="chart-note">Historical chart pending</span>
+        <span className="chart-label">
+          {company.ticker} · 1-minute history
+        </span>
+        <span className="chart-note">
+          {historyLoading ? "Loading Candles..." : `${candles.length} candles`}
+        </span>
 
         <div className="zoom-controls" aria-label="Chart zoom controls">
           <button
@@ -124,7 +131,14 @@ export default function MarketPanel({
         </div>
       </div>
 
-      <MarketChart company={company} zoomIndex={zoomIndex} />
+      <MarketChart 
+        company={company} 
+        zoomIndex={zoomIndex} 
+        candles={candles} 
+        loading={historyLoading}
+        previousClose={previousClose}
+        analysisResults={analysisResults}
+      />
     </section>
   );
 }
